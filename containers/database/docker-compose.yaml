@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  database:
+    image: mongodb/mongodb-community-server:8.0.1-ubuntu2204
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - 27017:27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=sourabh
+      - MONGO_INITDB_ROOT_PASSWORD=sourabhS1812
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'host.docker.internal:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
+    volumes:
+      - "users_data:/data/db"
+      - "users_config:/data/configdb"
+
+  cache:
+    image: redis/redis-stack:7.4.0-v0
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    command:
+      [
+        "/entrypoint.sh",
+        "./redis-stack.conf",
+        "redis-server",
+        "--loadmodule",
+        "/opt/redis-stack/lib/redisearch.so",
+      ]
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+    volumes:
+      - users_cache:/data/cache
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+volumes:
+  users_data:
+    driver: local
+  users_config:
+    driver: local
+  users_cache:
+    driver: local
